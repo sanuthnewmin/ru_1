@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ESP32 Device Status</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" rel="stylesheet">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+    }
+    h1 {
+      color: #333;
+      font-size: 36px;
+      margin-bottom: 20px;
+    }
+    .card-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr); /* 2 columns */
+      grid-gap: 10px; /* Reduced gap for closer cards */
+      justify-items: center; /* Center cards horizontally */
+      width: 100%;
+      max-width: 600px; /* Set max width for better layout */
+    }
+    .device {
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.1);
+      padding: 15px 20px;
+      width: 140px; /* Adjust width to make cards smaller */
+      text-align: center;
+      transition: all 0.3s ease-in-out;
+    }
+    .status {
+      font-size: 30px;
+      margin-bottom: 10px;
+    }
+    .online {
+      color: #4CAF50;
+    }
+    .offline {
+      color: #f44336;
+    }
+    .name {
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 5px;
+      color: #555;
+    }
+    .status-text {
+      font-size: 14px;
+      font-weight: normal;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+
+ 
+
+  <div class="card-container">
+    <div id="ir_temp" class="device">
+      <div id="status-ir_temp" class="status offline">
+        <i class="fas fa-temperature-high"></i>
+      </div>
+      <div class="name">IR Temperature</div>
+      <div id="status-text-ir_temp" class="status-text">Offline</div>
+    </div>
+
+    <div id="k_type_temp" class="device">
+      <div id="status-k_type_temp" class="status offline">
+        <i class="fas fa-thermometer-half"></i>
+      </div>
+      <div class="name">K-Type Temperature</div>
+      <div id="status-text-k_type_temp" class="status-text">Offline</div>
+    </div>
+
+    <div id="current_1" class="device">
+      <div id="status-current_1" class="status offline">
+        <i class="fas fa-bolt"></i>
+      </div>
+      <div class="name">Current 1</div>
+      <div id="status-text-current_1" class="status-text">Offline</div>
+    </div>
+
+    <div id="current_2" class="device">
+      <div id="status-current_2" class="status offline">
+        <i class="fas fa-bolt"></i>
+      </div>
+      <div class="name">Current 2</div>
+      <div id="status-text-current_2" class="status-text">Offline</div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <script>
+    // Connect to MQTT broker over WebSocket
+    const client = mqtt.connect('ws://broker.emqx.io:8083/mqtt');
+
+    // Track last message time for each sensor
+    const devices = {
+      ir_temp: { lastSeen: 0 },
+      k_type_temp: { lastSeen: 0 },
+      current_1: { lastSeen: 0 },
+      current_2: { lastSeen: 0 }
+    };
+
+    // Define the topics for each sensor
+    const topic_ir_temp = "esp32/sensors/ir_temp";
+    const topic_k_type_temp = "esp32/sensors/k_type_temp";
+    const topic_current_1 = "esp32/sensors/current_1";
+    const topic_current_2 = "esp32/sensors/current_2";
+
+    // Subscribe to all sensor topics
+    client.on('connect', () => {
+      console.log('Connected to MQTT broker');
+      client.subscribe(topic_ir_temp);
+      client.subscribe(topic_k_type_temp);
+      client.subscribe(topic_current_1);
+      client.subscribe(topic_current_2);
+    });
+
+    // Update lastSeen timestamp when data is received
+    client.on('message', (topic, message) => {
+      if (topic === topic_ir_temp) {
+        devices.ir_temp.lastSeen = Date.now();
+        console.log(`Received from ${topic}: ${message}`);
+      } else if (topic === topic_k_type_temp) {
+        devices.k_type_temp.lastSeen = Date.now();
+        console.log(`Received from ${topic}: ${message}`);
+      } else if (topic === topic_current_1) {
+        devices.current_1.lastSeen = Date.now();
+        console.log(`Received from ${topic}: ${message}`);
+      } else if (topic === topic_current_2) {
+        devices.current_2.lastSeen = Date.now();
+        console.log(`Received from ${topic}: ${message}`);
+      }
+    });
+
+    // Function to update the device status
+    function updateStatus() {
+      const now = Date.now();
+
+      // Update status for IR Temperature
+      const statusIrTemp = document.getElementById('status-ir_temp');
+      const statusTextIrTemp = document.getElementById('status-text-ir_temp');
+      const timeSinceLastIrTemp = now - devices.ir_temp.lastSeen;
+      if (timeSinceLastIrTemp < 10000) {
+        statusIrTemp.classList.add('online');
+        statusIrTemp.classList.remove('offline');
+        statusTextIrTemp.textContent = "Online";
+      } else {
+        statusIrTemp.classList.remove('online');
+        statusIrTemp.classList.add('offline');
+        statusTextIrTemp.textContent = "Offline";
+      }
+
+      // Update status for K-Type Temperature
+      const statusKTypeTemp = document.getElementById('status-k_type_temp');
+      const statusTextKTypeTemp = document.getElementById('status-text-k_type_temp');
+      const timeSinceLastKTypeTemp = now - devices.k_type_temp.lastSeen;
+      if (timeSinceLastKTypeTemp < 10000) {
+        statusKTypeTemp.classList.add('online');
+        statusKTypeTemp.classList.remove('offline');
+        statusTextKTypeTemp.textContent = "Online";
+      } else {
+        statusKTypeTemp.classList.remove('online');
+        statusKTypeTemp.classList.add('offline');
+        statusTextKTypeTemp.textContent = "Offline";
+      }
+
+      // Update status for Current 1
+      const statusCurrent1 = document.getElementById('status-current_1');
+      const statusTextCurrent1 = document.getElementById('status-text-current_1');
+      const timeSinceLastCurrent1 = now - devices.current_1.lastSeen;
+      if (timeSinceLastCurrent1 < 10000) {
+        statusCurrent1.classList.add('online');
+        statusCurrent1.classList.remove('offline');
+        statusTextCurrent1.textContent = "Online";
+      } else {
+        statusCurrent1.classList.remove('online');
+        statusCurrent1.classList.add('offline');
+        statusTextCurrent1.textContent = "Offline";
+      }
+
+      // Update status for Current 2
+      const statusCurrent2 = document.getElementById('status-current_2');
+      const statusTextCurrent2 = document.getElementById('status-text-current_2');
+      const timeSinceLastCurrent2 = now - devices.current_2.lastSeen;
+      if (timeSinceLastCurrent2 < 10000) {
+        statusCurrent2.classList.add('online');
+        statusCurrent2.classList.remove('offline');
+        statusTextCurrent2.textContent = "Online";
+      } else {
+        statusCurrent2.classList.remove('online');
+        statusCurrent2.classList.add('offline');
+        statusTextCurrent2.textContent = "Offline";
+      }
+    }
+
+    // Check every 3 seconds
+    setInterval(updateStatus, 3000);
+  </script>
+
+</body>
+</html>

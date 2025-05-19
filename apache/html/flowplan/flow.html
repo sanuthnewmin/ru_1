@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Sensor Dashboard</title>
+  <style>
+    body {
+      margin: 0;
+      background: #f4f4f4;
+      font-family: Arial, sans-serif;
+    }
+
+    .container {
+      position: relative;
+      max-width: 1187px;
+      margin: 20px auto;
+      border: 1px solid #ccc;
+      background-color: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+
+    .container img {
+      width: 100%;
+      display: block;
+    }
+
+    .sensor-box {
+      position: absolute;
+      background-color: rgba(255, 255, 255, 0.85);
+      border: 1px solid #999;
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-weight: bold;
+      font-size: 14px;
+      min-width: 160px;
+      text-align: left;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      cursor: move;
+    }
+
+    .title {
+      text-align: center;
+      font-size: 24px;
+      font-weight: bold;
+      margin-top: 20px;
+    }
+
+    .status {
+      text-align: center;
+      font-size: 14px;
+      margin-bottom: 10px;
+      color: green;
+    }
+  </style>
+</head>
+<body>
+
+<div class="status" id="status">Connecting to EMQX broker...</div>
+
+<div class="container" id="dashboard">
+  <img src="grafana.gif" alt="Factory Layout" />
+
+  <div id="kType" class="sensor-box">K-type Temp: -- °C</div>
+  <div id="irTemp" class="sensor-box">IR Temp: -- °C</div>
+  <div id="current1" class="sensor-box">Current 1: -- A</div>
+  <div id="current2" class="sensor-box">Current 2: -- A</div>
+</div>
+
+<!-- MQTT over WebSocket client -->
+<script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+<script>
+  const brokerURL = 'ws://broker.emqx.io:8083/mqtt';
+  const topic = 'devices/1/data';
+  const statusDiv = document.getElementById('status');
+
+  const client = mqtt.connect(brokerURL);
+
+  client.on('connect', () => {
+    statusDiv.textContent = '✅ Connected to EMQX';
+    statusDiv.style.color = 'green';
+    client.subscribe(topic);
+  });
+
+  client.on('message', (receivedTopic, message) => {
+    if (receivedTopic === topic) {
+      try {
+        const data = JSON.parse(message.toString());
+        document.getElementById('kType').innerText = `K-type Temp: ${data.k_type_temp} °C`;
+        document.getElementById('irTemp').innerText = `IR Temp: ${data.ir_temp} °C`;
+        document.getElementById('current1').innerText = `Current 1: ${data.current_1} A`;
+        document.getElementById('current2').innerText = `Current 2: ${data.current_2} A`;
+      } catch (e) {
+        console.error('Invalid message format', e);
+      }
+    }
+  });
+
+  client.on('error', (err) => {
+    console.error('Connection Error:', err);
+    statusDiv.textContent = '❌ Failed to connect to EMQX';
+    statusDiv.style.color = 'red';
+  });
+
+  client.on('offline', () => {
+    statusDiv.textContent = '⚠️ MQTT connection offline';
+    statusDiv.style.color = 'orange';
+  });
+
+  // Drag and Drop Functionality
+  const boxes = document.querySelectorAll('.sensor-box');
+
+  boxes.forEach(box => {
+    let offsetX = 0, offsetY = 0, isDragging = false;
+
+    // Load saved positions
+    const saved = localStorage.getItem(box.id);
+    if (saved) {
+      const { top, left } = JSON.parse(saved);
+      box.style.top = top;
+      box.style.left = left;
+    }
+
+    box.addEventListener('mousedown', (e) => {
+      isDragging = true;
+      offsetX = e.clientX - box.offsetLeft;
+      offsetY = e.clientY - box.offsetTop;
+      box.style.zIndex = 1000;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      box.style.left = `${e.clientX - offsetX}px`;
+      box.style.top = `${e.clientY - offsetY}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        box.style.zIndex = '';
+        // Save position
+        localStorage.setItem(box.id, JSON.stringify({
+          top: box.style.top,
+          left: box.style.left
+        }));
+      }
+    });
+  });
+</script>
+
+</body>
+</html>

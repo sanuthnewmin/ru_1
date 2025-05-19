@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Device 2 Status</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #111;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .card {
+      border-radius: 16px;
+      background: #010016;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      width: 180px;
+      height: auto;
+      text-align: center;
+      transition: box-shadow 0.5s;
+    }
+
+    .card.online {
+      animation: greenGlow 2s infinite alternate;
+    }
+
+    .card.offline {
+      animation: redGlow 2s infinite alternate;
+    }
+
+    @keyframes greenGlow {
+      0% { box-shadow: 0 0 10px #00ffc3; }
+      100% { box-shadow: 0 0 25px #00ffc3; }
+    }
+
+    @keyframes redGlow {
+      0% { box-shadow: 0 0 10px #ff1e1e; }
+      100% { box-shadow: 0 0 25px #ff1e1e; }
+    }
+
+    .card h2 {
+      font-size: 24px;
+      margin-bottom: 25px;
+      transition: color 0.5s;
+    }
+
+    .card.online h2 {
+      color: #00ffc3;
+    }
+
+    .card.offline h2 {
+      color: #b30d0d;
+    }
+
+    .signal-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      height: 60px;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .bar {
+      width: 10px;
+      border-radius: 4px;
+      transition: height 0.3s ease, background-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .online .bar {
+      background-color: #00ffc3;
+      box-shadow: 0 0 10px #00ffc3;
+    }
+
+    .offline .bar {
+      background-color: #e71818ab;
+      box-shadow: 0 0 8px #a10404;
+    }
+
+    .online .bar:nth-child(1) {
+      animation: bounce 1s infinite ease-in-out 0s;
+      height: 20%;
+    }
+
+    .online .bar:nth-child(2) {
+      animation: bounce 1s infinite ease-in-out 0.1s;
+      height: 40%;
+    }
+
+    .online .bar:nth-child(3) {
+      animation: bounce 1s infinite ease-in-out 0.2s;
+      height: 60%;
+    }
+
+    .online .bar:nth-child(4) {
+      animation: bounce 1s infinite ease-in-out 0.3s;
+      height: 80%;
+    }
+
+    .offline .bar:nth-child(1) { height: 20%; }
+    .offline .bar:nth-child(2) { height: 40%; }
+    .offline .bar:nth-child(3) { height: 60%; }
+    .offline .bar:nth-child(4) { height: 80%; }
+
+    @keyframes bounce {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(1.6); }
+    }
+
+    .status-text {
+      font-size: 20px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    .status-text.online-text {
+      color: #00ffc3;
+    }
+
+    .status-text.offline-text {
+      color: #fff;
+    }
+
+    .message {
+      font-size: 14px;
+    }
+
+    .message.online-message {
+      color: #aaa;
+    }
+
+    .message.offline-message {
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div id="card" class="card offline">
+    <h2>Device 2 Status</h2>
+    <div id="signal" class="signal-wrapper offline">
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+      <div class="bar"></div>
+    </div>
+    <div id="status" class="status-text offline-text">Offline</div>
+    <div id="message" class="message offline-message">Please check your device.</div>
+  </div>
+
+  <script>
+    const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
+    let lastSeen = 0;
+
+    client.on('connect', () => {
+      client.subscribe("devices/2/data");
+    });
+
+    client.on('message', (topic, message) => {
+      lastSeen = Date.now();
+      updateStatus(true);
+    });
+
+    function updateStatus(isOnline) {
+      const card = document.getElementById("card");
+      const signal = document.getElementById("signal");
+      const status = document.getElementById("status");
+      const message = document.getElementById("message");
+
+      if (isOnline) {
+        card.className = "card online";
+        signal.className = "signal-wrapper online";
+        status.textContent = "Online";
+        status.className = "status-text online-text";
+        message.textContent = "";
+        message.className = "message online-message";
+      } else {
+        card.className = "card offline";
+        signal.className = "signal-wrapper offline";
+        status.textContent = "Offline";
+        status.className = "status-text offline-text";
+        message.textContent = "Please check your device.";
+        message.className = "message offline-message";
+      }
+    }
+
+    setInterval(() => {
+      updateStatus(Date.now() - lastSeen < 10000); // 10s timeout
+    }, 3000);
+  </script>
+</body>
+</html>
