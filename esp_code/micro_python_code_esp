@@ -1,0 +1,112 @@
+import network
+import time
+import json
+import random
+from umqtt.simple import MQTTClient
+from machine import Pin, unique_id
+import ubinascii
+from ntptime import settime
+import utime
+
+# Wi-Fi Configuration
+WIFI_SSID = 'SLT FIBER'
+WIFI_PASSWORD = 'aw2233072'
+
+# MQTT Configuration
+MQTT_BROKER = 'broker.emqx.io'
+MQTT_PORT = 1883
+DEVICE_COUNT = 3  # Number of devices
+
+# Pin Configuration
+buzzer = Pin(21, Pin.OUT)
+led = Pin(22, Pin.OUT)
+
+# Button pins for device 1, 2, and 3
+button_pins = [5, 18, 19]
+device_active = [True, True, True]  # All devices start active
+
+# Map pins to device index
+pin_to_index = {}
+buttons = []
+
+for i, pin_num in enumerate(button_pins):
+    pin = Pin(pin_num, Pin.IN, Pin.PULL_UP)
+    pin_to_index[id(pin)] = i
+    buttons.append(pin)
+
+# Beep function
+def beep(times=1, duration=100):
+    for _ in range(times):
+        buzzer.value(1)
+        time.sleep_ms(duration)
+        buzzer.value(0)
+        time.sleep_ms(100)
+
+# Connect to Wi-Fi
+def connect_wifi():
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    if not wlan.isconnected():
+        print('Connecting to Wi-Fi...')
+        wlan.connect(WIFI_SSID, WIFI_PASSWORD)
+        while not wlan.isconnected():
+            pass
+    print('Wi-Fi connected:', wlan.ifconfig())
+    beep(1)
+
+# Generate sensor data
+def generate_sensor_data(device_id):
+    return {
+        "device_id": device_id,
+        "timestamp": "{}".format(utime.localtime()),
+        "ir_temp": round(random.uniform(20.0, 30.0), 2),
+        "k_type_temp": round(random.uniform(100.0, 200.0), 2),
+        "current_1": round(random.uniform(0.5, 2.0), 2),
+        "current_2": round(random.uniform(0.5, 2.0), 2)
+    }
+
+# Toggle device on button press
+def toggle_device(pin):
+    index = pin_to_index.get(id(pin))
+    if index is not None:
+        device_active[index] = not device_active[index]
+        state = "Resumed" if device_active[index] else "Stopped"
+        print(f"Button for Device {index + 1} pressed. State: {state}")
+
+# Main function
+def main():
+    connect_wifi()
+
+    try:
+        settime()  # Sync time
+    except:
+        print("Failed to sync time")
+
+    client_id = ubinascii.hexlify(unique_id())
+    client = MQTTClient(client_id, MQTT_BROKER, port=MQTT_PORT)
+    client.connect()
+    print("Connected to MQTT Broker:", MQTT_BROKER)
+
+    # Set interrupts for buttons
+    for button in buttons:
+        button.irq(trigger=Pin.IRQ_FALLING, handler=toggle_device)
+
+    try:
+        while True:
+            for device_id in range(1, DEVICE_COUNT + 1):
+                if device_active[device_id - 1]:
+                    topic = b"devices/%d/data" % device_id
+                    payload = json.dumps(generate_sensor_data(device_id))
+
+                    beep(1, 50)
+                    led.value(1)
+                    client.publish(topic, payload)
+                    print("Published to", topic.decode(), ":", payload)
+                    led.value(0)
+
+            time.sleep(5)
+    except KeyboardInterrupt:
+        print("Publisher stopped")
+        client.disconnect()
+
+main()
